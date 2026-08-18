@@ -220,13 +220,11 @@
 
   </style>
   <script>
-    /* Apply theme before paint: manual choice wins, else follow device. */
+    /* Apply theme before paint — always follow the device. */
     (function () {
       try {
-        var saved = localStorage.getItem("theme");
-        var dark = saved ? saved === "dark"
-          : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
-        if (dark) document.documentElement.setAttribute("data-theme", "dark");
+        if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)
+          document.documentElement.setAttribute("data-theme", "dark");
       } catch (e) {}
     })();
   </script>
@@ -559,13 +557,15 @@
     );
     document.querySelectorAll(".reveal").forEach(el => obs.observe(el));
 
-    /* ── THEME TOGGLE (device-aware, manual override) ── */
+    /* ── THEME: always follow device; switch = temporary per-visit override ── */
     (function () {
       const root = document.documentElement;
       const btn = document.getElementById("themeToggle");
       const mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+      let overridden = false;   // in-memory only — resets on reload
 
-      function stored() { try { return localStorage.getItem("theme"); } catch (e) { return null; } }
+      // Remove any saved preference left by earlier versions, so nothing sticks.
+      try { localStorage.removeItem("theme"); } catch (e) {}
 
       function apply(mode) {                 // mode: "dark" | "light"
         if (mode === "dark") root.setAttribute("data-theme", "dark");
@@ -574,21 +574,20 @@
         if (window.__netRecolour) window.__netRecolour();
       }
 
-      // Sync switch state with whatever the pre-paint script already set.
+      // On load, mirror the device theme the pre-paint script already applied.
       apply(root.getAttribute("data-theme") === "dark" ? "dark" : "light");
 
-      // Follow the device live — but only while the visitor hasn't chosen manually.
+      // Live-follow the device — until the visitor flips the switch this session.
       if (mq) {
-        const onSystemChange = e => { if (!stored()) apply(e.matches ? "dark" : "light"); };
+        const onSystemChange = e => { if (!overridden) apply(e.matches ? "dark" : "light"); };
         if (mq.addEventListener) mq.addEventListener("change", onSystemChange);
         else if (mq.addListener) mq.addListener(onSystemChange);
       }
 
-      // Manual toggle persists as an override.
+      // Switch = temporary override for this visit only (never saved).
       if (btn) btn.addEventListener("click", function () {
-        const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
-        try { localStorage.setItem("theme", next); } catch (e) {}
-        apply(next);
+        overridden = true;
+        apply(root.getAttribute("data-theme") === "dark" ? "light" : "dark");
       });
     })();
 
